@@ -1,0 +1,40 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 18
+skinparam linetype ortho
+skinparam rectangle {
+  BackgroundColor #EDF2F7
+  BorderColor #4A5568
+  FontColor #1A202C
+}
+skinparam person {
+  BackgroundColor #E6FFFA
+  BorderColor #319795
+}
+title C4 Context — передача ставок в кол-центры
+
+person backoffice as "Сотрудник\nбэк-офиса депозитов"
+person operator as "Оператор кол-центра банка\n200 человек"
+person partnerOperator as "Оператор партнёра\n100 человек"
+
+rectangle abs as "АБС\n[PL/SQL / Oracle]\nЕдиный источник ставок" #FFF7ED
+rectangle publication as "Контур публикации ставок\n[интеграционные компоненты банка]\nСинхронизация и файловая выгрузка" #EBF8FF
+rectangle cc as "Система кол-центра банка\n[React / Spring Boot / PostgreSQL]\nЛокальные актуальные ставки" #F7FAFC
+rectangle sftp as "SFTP-контур\n[банк / партнёр]\nПередача файлов" #F7FAFC
+rectangle partner as "Внешняя система\nпартнёрского кол-центра\nРабота с полученным файлом" #F7FAFC
+
+backoffice --> abs : изменяет и согласует ставки
+abs --> publication : новые версии ставок\nпо защищённому интерфейсу
+publication --> cc : HTTPS, обновление\nпубличных ставок
+operator --> cc : консультирует клиента,\nвидит время обновления
+publication --> sftp : полный снимок ставок\nс версией и контрольной суммой
+sftp --> partner : файл по SFTP
+partnerOperator --> partner : консультирует\nпо последнему файлу
+
+legend right
+  Партнёр получает только публичные ставки.
+  Персональные условия, данные клиентов\nи параметры риска не выгружаются.
+endlegend
+@enduml

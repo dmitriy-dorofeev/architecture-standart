@@ -1,0 +1,66 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 16
+skinparam linetype ortho
+skinparam rectangle {
+  BackgroundColor #EDF2F7
+  BorderColor #4A5568
+  FontColor #1A202C
+}
+skinparam database {
+  BackgroundColor #F7FAFC
+  BorderColor #4A5568
+}
+title C4 Components — публикация ставок в кол-центры
+
+person operator as "Оператор\nкол-центра банка"
+person partnerOperator as "Оператор\nпартнёрского кол-центра"
+person support as "Эксплуатация банка"
+
+rectangle "АБС" as absBoundary <<System>> #FFFFFF {
+  rectangle rates as "Модуль ставок\n[PL/SQL]\nПубличные условия,\nверсия и время изменения" #FFF7ED
+  rectangle ratesApi as "Интерфейс публикации\n[защищённый внутренний API]\nЧтение новых версий" #FFF7ED
+  database oracle as "Oracle АБС"
+}
+
+rectangle "Контур публикации ставок" as publicationBoundary <<System>> #FFFFFF {
+  rectangle sync as "Синхронизатор ставок\n[интеграционный компонент]\nПо изменению и по расписанию" #EBF8FF
+  rectangle exporter as "Генератор файлов\nПолный снимок,\nверсия, дата, checksum" #EBF8FF
+  rectangle delivery as "SFTP-доставка\nПовтор после ошибки,\nжурнал результата" #EBF8FF
+  database publicationDb as "MS SQL контура заявок\nверсии и статусы публикации"
+  rectangle monitoring as "Мониторинг публикации\nПоследняя версия,\nошибки и повторы" #EBF8FF
+}
+
+rectangle "Система кол-центра банка" as ccBoundary <<System>> #FFFFFF {
+  rectangle ccUi as "Экран оператора\n[React]\nСтавки и время обновления" #F7FAFC
+  rectangle ccApi as "Rates API\n[Java Spring Boot]\nОбновление и чтение\nread model" #F7FAFC
+  database postgres as "PostgreSQL\nпубличные ставки"
+}
+
+rectangle sftp as "SFTP-сервер\nВыделенный каталог\nдля партнёра" #F7FAFC
+rectangle partner as "Внешняя система партнёра\nЗагрузка последнего файла" #F7FAFC
+
+rates --> oracle : учёт ставок
+ratesApi --> rates : читает опубликованную\nверсию
+sync --> ratesApi : защищённый вызов\nс ограничением частоты
+sync --> ccApi : HTTPS, полная версия\nпубличных ставок
+ccApi --> postgres : атомарная замена\nread model
+operator --> ccUi : консультация клиента
+ccUi --> ccApi : HTTPS, чтение ставок
+sync --> exporter : публичный снимок\nтой же версии
+exporter --> publicationDb : регистрирует файл\nи checksum
+exporter --> delivery : файл для отправки
+delivery --> sftp : SFTP, запись во временное имя\nи атомарное переименование
+delivery --> publicationDb : результат и повторы
+sftp --> partner : партнёр забирает файл
+partnerOperator --> partner : просмотр условий
+monitoring --> publicationDb : контроль последней\nуспешной публикации
+monitoring --> support : оповещение при сбое\nили устаревании
+
+legend right
+  Нет прямых запросов экрана оператора к АБС.
+  В файле нет персональных и специальных ставок.
+endlegend
+@enduml
