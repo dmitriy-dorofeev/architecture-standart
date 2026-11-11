@@ -1,0 +1,74 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 16
+skinparam linetype ortho
+skinparam rectangle {
+  BackgroundColor #EDF2F7
+  BorderColor #4A5568
+  FontColor #1A202C
+}
+skinparam database {
+  BackgroundColor #F7FAFC
+  BorderColor #4A5568
+}
+title C4 Containers — открытие депозитов онлайн, MVP
+
+person client as "Клиент"
+person backoffice as "Менеджер\nбэк-офиса депозитов"
+
+rectangle "Сайт" as siteBoundary <<System>> #FFFFFF {
+  rectangle siteUi as "Web UI\n[React]\nКаталог и форма" #F7FAFC
+  rectangle siteApi as "Backend сайта\n[PHP]\nВалидация публичной формы" #F7FAFC
+}
+
+rectangle "Интернет-банк" as ibBoundary <<System>> #FFFFFF {
+  rectangle ibUi as "Web UI\n[ASP.NET MVC 4.5]\nСтавки, заявка, статусы" #F7FAFC
+  rectangle ibCore as "Монолит интернет-банка\n[.NET Framework 4.5]\nАутентификация, счета клиента" #F7FAFC
+  database ibDb as "MS SQL ИБ\nсуществующие данные"
+}
+
+rectangle "Контур заявок на депозиты" as depositBoundary <<System>> #FFFFFF {
+  rectangle depositApi as "API заявок и ставок\n[.NET, новый компонент]\nИдемпотентный приём, read model" #EBF8FF
+  database depositDb as "MS SQL депозитов\nзаявки, статусы, ставки\noutbox и отправки SMS"
+  rectangle worker as "Обработчик outbox\n[.NET Worker]\nПовторы и контроль доставки" #EBF8FF
+  rectangle absAdapter as "Адаптер АБС\n[.NET / Java]\nОграничение нагрузки,\nпакетная синхронизация" #EBF8FF
+  rectangle smsAdapter as "SMS-компонент банка\nПроверка кода,\nдедупликация уведомлений" #EBF8FF
+}
+
+rectangle "АБС" as absBoundary <<System>> #FFFFFF {
+  rectangle absClient as "Десктопный клиент\n[Delphi]\nРабочее место бэк-офиса" #FFF7ED
+  rectangle absModule as "Модуль депозитов\n[PL/SQL + интерфейс интеграции]\nСтавки, согласование, заявки" #FFF7ED
+  database absDb as "Oracle АБС\nучётные данные"
+}
+
+rectangle cc as "Система кол-центра\n[React / Spring Boot]\nОбращения с сайта" #F7FAFC
+rectangle sms as "SMS-шлюз\n[телеком-оператор]" #F7FAFC
+
+client --> siteUi : HTTPS
+client --> ibUi : HTTPS
+siteUi --> siteApi : HTTPS
+siteApi --> depositApi : HTTPS\nставки и лид
+ibUi --> ibCore : внутренний вызов
+ibCore --> ibDb : данные клиента и счетов
+ibCore --> depositApi : HTTPS\nставки, заявка, статус
+depositApi --> depositDb : транзакция:\nзаявка + outbox
+depositApi --> smsAdapter : отправить / проверить код
+worker --> depositDb : читает outbox,\nфиксирует доставку
+worker --> absAdapter : передаёт пакет операций
+absAdapter --> absModule : защищённый внутренний API\nповтор с ключом идемпотентности
+absAdapter --> absModule : получает изменения ставок\nи статусы заявок
+worker --> depositDb : обновляет read model\nи статусы
+backoffice --> absClient : проверка и подтверждение
+absClient --> absModule : операции бэк-офиса
+absModule --> absDb : PL/SQL
+depositApi --> cc : HTTPS, лид с сайта
+smsAdapter --> sms : HTTPS\nкоды и уведомления
+sms --> client : SMS
+
+legend right
+  Нет связей ibCore --> absModule\nи ibCore --> absDb.
+  Kafka в MVP не требуется.
+endlegend
+@enduml

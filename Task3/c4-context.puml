@@ -1,0 +1,46 @@
+@startuml
+!pragma layout smetana
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 18
+skinparam linetype ortho
+skinparam rectangle {
+  BackgroundColor #EDF2F7
+  BorderColor #4A5568
+  FontColor #1A202C
+}
+skinparam person {
+  BackgroundColor #E6FFFA
+  BorderColor #319795
+}
+title C4 Context — открытие депозитов онлайн, MVP
+
+person client as "Клиент\nновый или действующий"
+person operator as "Оператор\nкол-центра"
+person backoffice as "Менеджер\nбэк-офиса депозитов"
+person frontoffice as "Менеджер\nотделения"
+
+rectangle site as "Сайт\n[PHP / React]\nПубличные ставки и заявка" #F7FAFC
+rectangle ib as "Интернет-банк\n[ASP.NET MVC 4.5]\nПерсональные ставки и заявка" #F7FAFC
+rectangle deposits as "Контур заявок на депозиты\n[новая система банка]\nПриём, статусы, локальные ставки, SMS" #EBF8FF
+rectangle abs as "АБС\n[Delphi / PL/SQL / Oracle]\nСтавки, согласование и открытие депозита" #FFF7ED
+rectangle cc as "Система кол-центра\n[React / Spring Boot]\nОбращения с сайта" #F7FAFC
+rectangle sms as "SMS-шлюз\n[телеком-оператор]\nКоды и уведомления" #F7FAFC
+
+client --> site : смотрит ставки,\nоставляет Ф. И. О. и телефон
+client --> ib : выбирает счёт и сумму,\nподтверждает SMS-кодом
+site --> deposits : HTTPS, публичный каталог и заявка
+ib --> deposits : HTTPS, ставки и заявка
+operator --> cc : обзванивает клиентов
+deposits --> cc : HTTPS, обращение с сайта
+deposits --> abs : асинхронная передача заявки;\nполучение ставок и статусов
+backoffice --> abs : проверяет и подтверждает условия,\nоткрывает депозит в MVP
+frontoffice --> abs : идентификация нового клиента\nи работа с документами
+deposits --> sms : HTTPS, код подтверждения\nи уведомления
+sms --> client : SMS
+
+legend right
+  В MVP бэк-офис остаётся в процессе.
+  Каналы не обращаются напрямую к АБС.
+endlegend
+@enduml
